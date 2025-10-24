@@ -1,0 +1,20 @@
+{
+  "name": "casal-garcia-chat",
+  "description": "Chat web para demonstração do agente GarcIA - Casal Garcia Imóveis",
+  "repository": "https://github.com/Williambica/Garcia",
+  "keywords": ["chat", "imobiliaria", "n8n", "webhook"],
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "scripts": {
+    "postdeploy": "echo 'Deployment completed successfully'"
+  },
+  "env": {
+    "NODE_ENV": {
+      "description": "Node environment",
+      "value": "production"
+    }
+  }
+}
