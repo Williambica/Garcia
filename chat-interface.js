@@ -44,14 +44,26 @@ async function sendMessage() {
         
         // Processar resposta
         if (response && response.message) {
-            addMessage(response.message, 'bot');
+            // Verificar se a mensagem é muito longa e dividir se necessário
+            if (isMessageTooLong(response.message)) {
+                const messageParts = splitLongMessage(response.message);
+                await addMultipleMessages(messageParts, 'bot');
+            } else {
+                addMessage(response.message, 'bot');
+            }
             
             // Adicionar sugestões se disponíveis
             if (response.suggestions && response.suggestions.length > 0) {
                 addQuickReplies(response.suggestions);
             }
         } else if (response && response.response) {
-            addMessage(response.response, 'bot');
+            // Verificar se a mensagem é muito longa e dividir se necessário
+            if (isMessageTooLong(response.response)) {
+                const messageParts = splitLongMessage(response.response);
+                await addMultipleMessages(messageParts, 'bot');
+            } else {
+                addMessage(response.response, 'bot');
+            }
             
             // Adicionar sugestões se disponíveis
             if (response.suggestions && response.suggestions.length > 0) {
@@ -348,3 +360,100 @@ function setupInputHandlers() {
 document.addEventListener('DOMContentLoaded', function() {
     initializeChat();
 });
+
+
+// Configuração para divisão de mensagens
+const MESSAGE_CONFIG = {
+    maxLength: 300, // Máximo de caracteres por mensagem
+    delayBetweenMessages: 1500, // Delay entre mensagens em ms (1.5 segundos)
+    splitPatterns: [
+        /\.\s+/g,    // Pontos seguidos de espaço
+        /\!\s+/g,    // Exclamações seguidas de espaço
+        /\?\s+/g,    // Interrogações seguidas de espaço
+        /\;\s+/g,    // Ponto e vírgula seguidos de espaço
+        /\:\s+/g,    // Dois pontos seguidos de espaço
+        /\n\n/g,     // Quebras de linha duplas
+        /\n/g        // Quebras de linha simples
+    ]
+};
+
+// Função para detectar se uma mensagem é muito longa
+function isMessageTooLong(message) {
+    return message && message.length > MESSAGE_CONFIG.maxLength;
+}
+
+// Função para dividir mensagem em partes menores
+function splitLongMessage(message) {
+    if (!isMessageTooLong(message)) {
+        return [message];
+    }
+
+    const parts = [];
+    let remainingText = message.trim();
+
+    while (remainingText.length > MESSAGE_CONFIG.maxLength) {
+        let splitPoint = MESSAGE_CONFIG.maxLength;
+        let bestSplit = -1;
+
+        // Tentar encontrar um ponto de divisão natural
+        for (const pattern of MESSAGE_CONFIG.splitPatterns) {
+            const matches = [...remainingText.substring(0, MESSAGE_CONFIG.maxLength).matchAll(pattern)];
+            if (matches.length > 0) {
+                const lastMatch = matches[matches.length - 1];
+                const potentialSplit = lastMatch.index + lastMatch[0].length;
+                if (potentialSplit > bestSplit && potentialSplit < MESSAGE_CONFIG.maxLength) {
+                    bestSplit = potentialSplit;
+                }
+            }
+        }
+
+        // Se encontrou um ponto de divisão natural, usar ele
+        if (bestSplit > 0) {
+            splitPoint = bestSplit;
+        } else {
+            // Caso contrário, procurar o último espaço antes do limite
+            const lastSpace = remainingText.substring(0, MESSAGE_CONFIG.maxLength).lastIndexOf(' ');
+            if (lastSpace > MESSAGE_CONFIG.maxLength * 0.7) { // Pelo menos 70% do limite
+                splitPoint = lastSpace + 1;
+            }
+        }
+
+        // Extrair a parte e adicionar ao array
+        const part = remainingText.substring(0, splitPoint).trim();
+        if (part.length > 0) {
+            parts.push(part);
+        }
+
+        // Atualizar o texto restante
+        remainingText = remainingText.substring(splitPoint).trim();
+    }
+
+    // Adicionar a parte final se houver
+    if (remainingText.length > 0) {
+        parts.push(remainingText);
+    }
+
+    return parts.length > 0 ? parts : [message];
+}
+
+// Função para adicionar múltiplas mensagens com delay
+async function addMultipleMessages(messageParts, sender, isWelcome = false) {
+    for (let i = 0; i < messageParts.length; i++) {
+        const part = messageParts[i];
+        
+        // Adicionar indicador se não for a primeira mensagem
+        if (i > 0) {
+            showTypingIndicator();
+            await new Promise(resolve => setTimeout(resolve, MESSAGE_CONFIG.delayBetweenMessages));
+            hideTypingIndicator();
+        }
+        
+        // Adicionar a mensagem
+        addMessage(part, sender, isWelcome && i === 0);
+        
+        // Pequeno delay adicional para melhor UX (exceto na última mensagem)
+        if (i < messageParts.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+}
