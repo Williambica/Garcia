@@ -25,7 +25,52 @@ async function sendMessage() {
     
     if (!message || isTyping) return;
     
-    // Adicionar mensagem do usuário
+    // Verificar se a mensagem do usuário é muito longa e dividir se necessário
+    if (isMessageTooLong(message)) {
+        const messageParts = splitLongMessage(message);
+        await addMultipleMessages(messageParts, 'user');
+        
+        // Enviar cada parte separadamente para o n8n
+        input.value = '';
+        input.style.height = 'auto';
+        document.getElementById('sendButton').disabled = true;
+        
+        for (let i = 0; i < messageParts.length; i++) {
+            const part = messageParts[i];
+            
+            // Mostrar indicador de digitação
+            showTypingIndicator();
+            isTyping = true;
+            
+            try {
+                // Enviar parte da mensagem para o webhook do n8n
+                const response = await sendToN8N(part);
+                
+                // Esconder indicador de digitação
+                hideTypingIndicator();
+                
+                // Processar resposta apenas da última parte
+                if (i === messageParts.length - 1) {
+                    await processResponse(response);
+                }
+                
+            } catch (error) {
+                console.error('Erro ao enviar parte da mensagem:', error);
+                hideTypingIndicator();
+                
+                // Mostrar mensagem de erro apenas na última parte
+                if (i === messageParts.length - 1) {
+                    addMessage('Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.', 'bot');
+                }
+            }
+        }
+        
+        isTyping = false;
+        document.getElementById('sendButton').disabled = false;
+        return;
+    }
+    
+    // Adicionar mensagem do usuário (caso não seja longa)
     addMessage(message, 'user');
     input.value = '';
     input.style.height = 'auto';
@@ -43,36 +88,7 @@ async function sendMessage() {
         hideTypingIndicator();
         
         // Processar resposta
-        if (response && response.message) {
-            // Verificar se a mensagem é muito longa e dividir se necessário
-            if (isMessageTooLong(response.message)) {
-                const messageParts = splitLongMessage(response.message);
-                await addMultipleMessages(messageParts, 'bot');
-            } else {
-                addMessage(response.message, 'bot');
-            }
-            
-            // Adicionar sugestões se disponíveis
-            if (response.suggestions && response.suggestions.length > 0) {
-                addQuickReplies(response.suggestions);
-            }
-        } else if (response && response.response) {
-            // Verificar se a mensagem é muito longa e dividir se necessário
-            if (isMessageTooLong(response.response)) {
-                const messageParts = splitLongMessage(response.response);
-                await addMultipleMessages(messageParts, 'bot');
-            } else {
-                addMessage(response.response, 'bot');
-            }
-            
-            // Adicionar sugestões se disponíveis
-            if (response.suggestions && response.suggestions.length > 0) {
-                addQuickReplies(response.suggestions);
-            }
-        } else {
-            // Fallback se não houver mensagem válida
-            addMessage('Recebi sua mensagem, mas não consegui gerar uma resposta adequada. Tente reformular sua pergunta.', 'bot');
-        }
+        await processResponse(response);
         
     } catch (error) {
         console.error('Erro ao enviar mensagem:', error);
@@ -87,9 +103,48 @@ async function sendMessage() {
     }
 }
 
-// Função para enviar mensagem para o webhook do n8n
-async function sendToN8N(message) {
-    const payload = {
+async function processResponse(response) {
+    if (response && response.message) {
+        
+        // Verificar se a mensagem é muito longa e dividir se necessário
+        if (isMessageTooLong(response.message)) {
+            const messageParts = splitLongMessage(response.message);
+            await addMultipleMessages(messageParts, 'bot');
+        } else {
+            addMessage(response.message, 'bot');
+        }
+        
+        // Adicionar sugestões se disponíveis
+        if (response.suggestions && response.suggestions.length > 0) {
+            addQuickReplies(response.suggestions);
+        }
+    } else if (response && response.response) {
+        console.log('Resposta recebida:', response.response);
+        console.log('Tamanho da resposta:', response.response.length);
+        console.log('É muito longa?', isMessageTooLong(response.response));
+        
+        // Verificar se a mensagem é muito longa e dividir se necessário
+        if (isMessageTooLong(response.response)) {
+            const messageParts = splitLongMessage(response.response);
+            console.log('Resposta dividida em', messageParts.length, 'partes:', messageParts);
+            await addMultipleMessages(messageParts, 'bot');
+        } else {
+            addMessage(response.response, 'bot');
+        }
+        
+        // Adicionar sugestões se disponíveis
+        if (response.suggestions && response.suggestions.length > 0) {
+            addQuickReplies(response.suggestions);
+        }
+    } else {
+        // Fallback se não houver mensagem válida
+        addMessage('Recebi sua mensagem, mas não consegui gerar uma resposta adequada. Tente reformular sua pergunta.', 'bot');
+    }
+}
+ 
+ // Função para enviar mensagem para o webhook do n8n
+ async function sendToN8N(message) {
+     const payload = {
         message: message,
         sessionId: sessionId,
         timestamp: new Date().toISOString(),
@@ -153,12 +208,12 @@ async function sendToN8N(message) {
             
             // Se a resposta parece ser texto simples (não JSON)
             if (!responseText.startsWith('{') && !responseText.startsWith('[')) {
-                return { message: responseText.substring(0, 500) }; // Limitar a 500 caracteres
+                return { message: responseText }; // Retorna texto completo
             }
             
             // Fallback final - sem log de erro
             return { 
-                message: responseText.length > 0 ? responseText.substring(0, 500) : 'Resposta recebida com sucesso.'
+                message: responseText.length > 0 ? responseText : 'Resposta recebida com sucesso.'
             };
         }
 
@@ -364,7 +419,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Configuração para divisão de mensagens
 const MESSAGE_CONFIG = {
-    maxLength: 300, // Máximo de caracteres por mensagem
+    maxLength: 800, // Máximo de caracteres por mensagem
     delayBetweenMessages: 1500, // Delay entre mensagens em ms (1.5 segundos)
     splitPatterns: [
         /\.\s+/g,    // Pontos seguidos de espaço
@@ -394,29 +449,60 @@ function splitLongMessage(message) {
     while (remainingText.length > MESSAGE_CONFIG.maxLength) {
         let splitPoint = MESSAGE_CONFIG.maxLength;
         let bestSplit = -1;
+        let bestPriority = 0;
 
-        // Tentar encontrar um ponto de divisão natural
-        for (const pattern of MESSAGE_CONFIG.splitPatterns) {
-            const matches = [...remainingText.substring(0, MESSAGE_CONFIG.maxLength).matchAll(pattern)];
-            if (matches.length > 0) {
-                const lastMatch = matches[matches.length - 1];
+        // Buscar pontos de divisão com prioridades diferentes
+        const searchText = remainingText.substring(0, MESSAGE_CONFIG.maxLength);
+        
+        // Prioridade 1: Pontos finais seguidos de espaço (mais natural)
+        const sentenceEnds = [...searchText.matchAll(/\.\s+/g)];
+        if (sentenceEnds.length > 0) {
+            const lastMatch = sentenceEnds[sentenceEnds.length - 1];
+            const potentialSplit = lastMatch.index + lastMatch[0].length;
+            if (potentialSplit > MESSAGE_CONFIG.maxLength * 0.3) { // Pelo menos 30% do limite
+                bestSplit = potentialSplit;
+                bestPriority = 3;
+            }
+        }
+
+        // Prioridade 2: Exclamações e interrogações seguidas de espaço
+        if (bestPriority < 2) {
+            const emotionalEnds = [...searchText.matchAll(/[!?]\s+/g)];
+            if (emotionalEnds.length > 0) {
+                const lastMatch = emotionalEnds[emotionalEnds.length - 1];
                 const potentialSplit = lastMatch.index + lastMatch[0].length;
-                if (potentialSplit > bestSplit && potentialSplit < MESSAGE_CONFIG.maxLength) {
+                if (potentialSplit > MESSAGE_CONFIG.maxLength * 0.3) {
                     bestSplit = potentialSplit;
+                    bestPriority = 2;
                 }
             }
         }
 
-        // Se encontrou um ponto de divisão natural, usar ele
-        if (bestSplit > 0) {
-            splitPoint = bestSplit;
-        } else {
-            // Caso contrário, procurar o último espaço antes do limite
-            const lastSpace = remainingText.substring(0, MESSAGE_CONFIG.maxLength).lastIndexOf(' ');
-            if (lastSpace > MESSAGE_CONFIG.maxLength * 0.7) { // Pelo menos 70% do limite
-                splitPoint = lastSpace + 1;
+        // Prioridade 3: Quebras de linha duplas (parágrafos)
+        if (bestPriority < 1) {
+            const paragraphBreaks = [...searchText.matchAll(/\n\n/g)];
+            if (paragraphBreaks.length > 0) {
+                const lastMatch = paragraphBreaks[paragraphBreaks.length - 1];
+                const potentialSplit = lastMatch.index + lastMatch[0].length;
+                if (potentialSplit > MESSAGE_CONFIG.maxLength * 0.2) {
+                    bestSplit = potentialSplit;
+                    bestPriority = 1;
+                }
             }
         }
+
+        // Fallback: Procurar o último espaço em uma posição razoável
+        if (bestSplit === -1) {
+            const lastSpace = searchText.lastIndexOf(' ');
+            if (lastSpace > MESSAGE_CONFIG.maxLength * 0.6) { // Pelo menos 60% do limite
+                bestSplit = lastSpace + 1;
+            } else {
+                // Último recurso: cortar no limite mesmo
+                bestSplit = MESSAGE_CONFIG.maxLength;
+            }
+        }
+
+        splitPoint = bestSplit;
 
         // Extrair a parte e adicionar ao array
         const part = remainingText.substring(0, splitPoint).trim();
