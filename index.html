@@ -3,21 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vendedora Virtual Casal Garcia</title>
+    <title>GarcIA - Assistente Virtual Casal Garcia Imóveis</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div class="chat-container">
+    <div class="chat-app">
+        <!-- Header do Chat -->
         <div class="chat-header">
-            <h1>Casal Garcia Imóveis</h1>
-            <p>Seu futuro imobiliário começa aqui</p>
+            <div class="agent-info">
+                <div class="agent-avatar">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="agent-details">
+                    <h3>GarcIA - Assistente Virtual</h3>
+                    <div class="status">
+                        <span class="online">●</span>
+                        Online - Especialista em Imóveis
+                    </div>
+                </div>
+            </div>
+            <div class="company-logo">
+                <h2>Casal Garcia Imóveis</h2>
+            </div>
         </div>
-        <div class="chat-messages" id="chatMessages"></div>
-        <div class="chat-input">
-            <input type="text" id="userInput" placeholder="Digite sua mensagem...">
-            <button onclick="sendMessage()">Enviar</button>
+
+        <!-- Área de Mensagens -->
+        <div class="chat-messages" id="chatMessages">
+            <!-- Mensagem de boas-vindas será inserida aqui pelo JavaScript -->
+        </div>
+
+        <!-- Ações Rápidas -->
+        <div class="quick-actions">
+            <button class="quick-btn" onclick="sendQuickMessage('Quero comprar um imóvel')">
+                <i class="fas fa-home"></i>
+                Comprar Imóvel
+            </button>
+            <button class="quick-btn" onclick="sendQuickMessage('Quero vender meu imóvel')">
+                <i class="fas fa-tag"></i>
+                Vender Imóvel
+            </button>
+            <button class="quick-btn" onclick="sendQuickMessage('Quero alugar um imóvel')">
+                <i class="fas fa-key"></i>
+                Alugar Imóvel
+            </button>
+            <button class="quick-btn" onclick="sendQuickMessage('Quero falar com um corretor')">
+                <i class="fas fa-user-tie"></i>
+                Falar com Corretor
+            </button>
+        </div>
+
+        <!-- Container de Input -->
+        <div class="chat-input-container">
+            <div class="input-wrapper">
+                <textarea 
+                    id="messageInput" 
+                    placeholder="Digite sua mensagem aqui..." 
+                    rows="1"
+                    onkeypress="handleKeyPress(event)"
+                    oninput="autoResize(this)"
+                ></textarea>
+                <button id="sendButton" onclick="sendMessage()" disabled>
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <div class="input-footer">
+                <small>Pressione Enter para enviar • Shift+Enter para nova linha</small>
+            </div>
         </div>
     </div>
-    <script src="chatbot.js"></script>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>GarcIA está pensando...</p>
+        </div>
+    </div>
+
+    <script src="chat-interface.js"></script>
 </body>
 </html>
