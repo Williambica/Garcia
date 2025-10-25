@@ -40,8 +40,8 @@ body::before {
 /* Container principal do chat */
 .chat-app {
     width: 100%;
-    max-width: 420px;
-    height: 650px;
+    max-width: 1220px;
+    height: 850px;
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(20px);
     border-radius: 24px;
